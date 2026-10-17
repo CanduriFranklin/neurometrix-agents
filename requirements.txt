@@ -1,0 +1,22 @@
+﻿# ============================================================
+# agents/requirements.txt
+# ============================================================
+# Base
+kafka-python==2.2.15
+psycopg2-binary==2.9.10
+pydantic==2.10.4
+pydantic-settings==2.7.0
+python-dotenv==1.0.1
+numpy==2.2.1
+
+# LLM client (OpenAI-compatible, apunta a vLLM local)
+openai==1.59.6
+httpx==0.28.1
+
+# RAG
+chromadb==0.6.3
+sentence-transformers==3.3.1
+
+# Utils
+rich==13.9.4
+tenacity==9.0.0

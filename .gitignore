@@ -1,0 +1,44 @@
+﻿# === Secrets (NEVER commit) ===
+.env
+.env.local
+*.pem
+*.key
+
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+*.egg-info/
+
+# === ML / RAG artifacts ===
+chroma_db/
+*.faiss
+*.index
+
+# === Runtime ===
+logs/
+reports/
+data/
+*.log
+*.pid
+
+# === Patch / scaffold scripts (dev only) ===
+_*.py
+_scaffold_*.py
+_patch_*.py
+_fix_*.py
+_update_*.py
+_create_*.py
+create_zip.sh
+agents.zip
+
+# === IDE ===
+.vscode/
+.idea/
+*.swp
+.DS_Store
