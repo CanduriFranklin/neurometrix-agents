@@ -42,3 +42,15 @@ agents.zip
 .idea/
 *.swp
 .DS_Store
+
+# Environment variables
+.env
+.env.local
+*.env
+
+
+# Virtual Environments
+venv/
+__pycache__/
+*.pyc
+
