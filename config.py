@@ -46,7 +46,7 @@ LLM_BASE_URL    = _get("LLM_BASE_URL", "http://localhost:8000/v1")
 LLM_API_KEY     = _get("LLM_API_KEY", "not-needed")
 LLM_MODEL       = _get("LLM_MODEL", "Qwen/Qwen2.5-14B-Instruct")
 LLM_TEMPERATURE = _get_float("LLM_TEMPERATURE", 0.1)
-LLM_MAX_TOKENS  = _get_int("LLM_MAX_TOKENS", 2048)
+LLM_MAX_TOKENS  = _get_int("LLM_MAX_TOKENS", 1024)
 
 # ---- LLM especialista (MedGemma 1.5 4B en puerto 8001) ----
 SPECIALIST_LLM_BASE_URL = _get("SPECIALIST_LLM_BASE_URL", LLM_BASE_URL)

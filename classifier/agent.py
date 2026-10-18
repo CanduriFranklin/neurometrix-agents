@@ -1,4 +1,4 @@
-"""Classifier — determinista. Features numericas -> scores + flags."""
+﻿"""Classifier â€” determinista. Features numericas -> scores + flags."""
 from __future__ import annotations
 
 import time
@@ -12,6 +12,7 @@ from config import (
     LLM_TEMPERATURE, LLM_MAX_TOKENS,
 )
 from models import ClassifiedFeatures, VolumeFeatures, new_request_id, new_user_id
+from agent_roles import get_system_prompt
 from storage import (
     get_logger, make_consumer,
     register_request, update_request_status,
@@ -219,7 +220,7 @@ Explica estos hallazgos en JSON siguiendo las reglas de IA responsable."""
 
 
 def run() -> None:
-    log.info("Classifier arrancando...")
+    log.info("Classifier starting...")
     consumer = make_consumer(KAFKA_TOPIC_RESULTS, "classifier")
 
     for msg in consumer:
@@ -234,7 +235,7 @@ def run() -> None:
             raw["user_id"] = usr_id
 
             features = VolumeFeatures(**raw)
-            log.info(f"clasificando req={req_id[:8]} mid={features.message_id} study={features.study_uid}")
+            log.info(f"classifying req={req_id[:8]} mid={features.message_id} study={features.study_uid}")
 
             # Registrar request maestro
             register_request(
@@ -305,3 +306,4 @@ def run() -> None:
 
 if __name__ == "__main__":
     run()
+

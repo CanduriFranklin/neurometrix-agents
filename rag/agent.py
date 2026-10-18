@@ -133,7 +133,7 @@ Responde SOLO con JSON: {{"selected": [0, 2, 5], "reasoning": "una linea"}}"""
 
 
 def run():
-    log.info("RAG agent (pgvector + rerank LLM) arrancando...")
+    log.info("RAG agent (pgvector + rerank LLM) starting...")
     consumer = make_consumer(KAFKA_TOPIC_CLASSIFIED, "rag")
 
     get_embedder()
