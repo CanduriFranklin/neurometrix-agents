@@ -26,7 +26,7 @@ def run():
         if isinstance(v, dict):
             log.debug(f"JSON OK mid={v.get('message_id')}")
         else:
-            log.warning(f"mensaje no-JSON recibido (len={len(str(v))}), requiere bridge")
+            log.warning(f"mensaje no-JSON received (len={len(str(v))}), requiere bridge")
 
 
 if __name__ == "__main__":

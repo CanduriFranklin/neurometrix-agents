@@ -1,88 +1,20 @@
-"""Specialist (MedGemma) - diagnostico asistido con IA responsable."""
-from __future__ import annotations
-
-import time
-import json
+﻿"""Specialist (MedGemma) - diagnostic assistance."""
+import time, json, re
 from openai import OpenAI
-
-from config import (
-    KAFKA_TOPIC_RETRIEVED,
-    KAFKA_TOPIC_ANALYZED,
-    SPECIALIST_LLM_BASE_URL,
-    SPECIALIST_LLM_API_KEY,
-    SPECIALIST_LLM_MODEL,
-    LLM_TEMPERATURE,
-    LLM_MAX_TOKENS,
-)
+from config import KAFKA_TOPIC_RETRIEVED, KAFKA_TOPIC_ANALYZED, SPECIALIST_LLM_BASE_URL, SPECIALIST_LLM_API_KEY, SPECIALIST_LLM_MODEL, LLM_TEMPERATURE, LLM_MAX_TOKENS
 from models import RetrievedContext, DiagnosedReport
-from storage import (
-    get_logger, make_consumer,
-    update_request_status, log_confidence, publish_with_trace,
-)
+from agent_roles import get_system_prompt
+from storage import get_logger, make_consumer, update_request_status, log_confidence, publish_with_trace
 
 log = get_logger("specialist")
-
-# ============================================================
-# IA RESPONSABLE - Prompt del especialista
-# ============================================================
-SPECIALIST_SYSTEM_PROMPT = get_system_prompt("specialist")
-
+SYSTEM_PROMPT = get_system_prompt("specialist")
 
 def format_features(c):
     f = c.classified.features
-    lines = [
-        "Modalidad: CT",
-        f"Dimensiones: {f.height}x{f.width}x{f.depth} (T={f.timepoints})",
-        f"Is 4D: {f.is_4d}",
-        "",
-        "=== HU Statistics ===",
-        f"mean_hu={f.mean_hu:.1f} stddev_hu={f.stddev_hu:.1f}",
-        f"min_hu={f.min_hu:.1f} max_hu={f.max_hu:.1f}",
-        "",
-        "=== Estructurales 3D ===",
-        f"mean_entropy={f.mean_entropy:.2f}",
-        f"peak_vesselness={f.peak_vesselness:.3f}",
-        f"asymmetry_score={f.asymmetry_score:.2f}",
-        f"total_volume_mm3={f.total_volume_mm3:.0f}",
-    ]
-    if f.is_4d:
-        lines += [
-            "",
-            "=== Perfusion 4D ===",
-            f"mean_cbf={f.mean_cbf:.2f} mL/100g/min",
-            f"mean_cbv={f.mean_cbv:.2f} mL/100g",
-            f"mean_mtt={f.mean_mtt:.2f} s",
-            f"mean_ttp={f.mean_ttp:.2f} s",
-            f"mean_tmax={f.mean_tmax:.2f} s",
-            f"core_voxels={f.core_voxels} penumbra_voxels={f.penumbra_voxels}",
-            f"mismatch_ratio={f.mismatch_ratio:.2f}",
-        ]
-    lines += [
-        "",
-        "=== Clasificador determinista (capa 1) ===",
-        f"primary: {c.classified.primary_hypothesis}",
-        f"flags: {c.classified.flags}",
-        f"scores: {c.classified.scores}",
-        f"reasoning: {c.classified.reasoning}",
-    ]
-    if c.classified.llm_reasoning:
-        lines += [
-            "",
-            "=== Razonamiento LLM del clasificador (capa 2) ===",
-            c.classified.llm_reasoning,
-        ]
-    return "\n".join(lines)
-
-
-def format_docs(docs):
-    parts = []
-    for d in docs:
-        parts.append(f"[{d['source']}::{d['header']}]\n{d['text']}")
-    return "\n\n---\n\n".join(parts)
-
+    return f"HU: {f.mean_hu:.1f}, Entropy: {f.mean_entropy:.2f}, CBF: {f.mean_cbf:.1f}, CBV: {f.mean_cbv:.1f}, MTT: {f.mean_mtt:.1f}, TMax: {f.mean_tmax:.1f}"
 
 def run():
-    log.info(f"Specialist (MedGemma) arrancando: {SPECIALIST_LLM_MODEL} @ {SPECIALIST_LLM_BASE_URL}")
+    log.info(f"Specialist starting: {SPECIALIST_LLM_MODEL}")
     client = OpenAI(base_url=SPECIALIST_LLM_BASE_URL, api_key=SPECIALIST_LLM_API_KEY)
     consumer = make_consumer(KAFKA_TOPIC_RETRIEVED, "specialist")
 
@@ -92,84 +24,82 @@ def run():
             ctx = RetrievedContext(**msg.value)
             req_id = ctx.request_id
 
-            user_prompt = f"""## METRICAS DEL VOLUMEN
-{format_features(ctx)}
-
-## DOCUMENTOS DE REFERENCIA (RAG)
-{format_docs(ctx.documents)}
-
-Genera el analisis en JSON siguiendo las reglas de IA responsable."""
+            user_prompt = f"Analyze these metrics: {format_features(ctx)}. Respond ONLY in JSON with keys: analysis, impression, differential (list of strings), confidence (number), evidence (list of strings)."
 
             resp = client.chat.completions.create(
                 model=SPECIALIST_LLM_MODEL,
-                messages=[
-                    {"role": "system", "content": SPECIALIST_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_prompt},
-                ],
-                temperature=LLM_TEMPERATURE,
-                max_tokens=LLM_MAX_TOKENS,
-                response_format={"type": "json_object"},
+                messages=[{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user_prompt}],
+                temperature=LLM_TEMPERATURE, max_tokens=LLM_MAX_TOKENS,
             )
+            
+            content = resp.choices[0].message.content.strip()
+            match = re.search(r'\{.*\}', content, re.DOTALL)
+            if match: content = match.group(0)
+            
+            try:
+                parsed = json.loads(content)
+            except Exception:
+                parsed = {}
 
-            parsed = json.loads(resp.choices[0].message.content)
+            # 1. Safe Confidence
+            raw_conf = parsed.get("confidence", 0.5)
+            try: confidence = float(raw_conf)
+            except (ValueError, TypeError):
+                raw_str = str(raw_conf).lower()
+                if "high" in raw_str: confidence = 0.9
+                elif "low" in raw_str: confidence = 0.3
+                else: confidence = 0.5
+
+            # 2. Safe Differential (Force list of strings)
+            raw_diff = parsed.get("differential", [])
+            diff_list = []
+            if isinstance(raw_diff, list):
+                for item in raw_diff:
+                    if isinstance(item, dict):
+                        # Extract hypothesis or rationale if it's a dict
+                        hyp = item.get("hypothesis", "")
+                        rat = item.get("rationale", "")
+                        diff_list.append(f"{hyp}: {rat}" if hyp and rat else str(item))
+                    else:
+                        diff_list.append(str(item))
+            else:
+                diff_list = [str(raw_diff)]
+
+            # 3. Safe Evidence (Force list of strings)
+            raw_ev = parsed.get("evidence", [])
+            ev_list = []
+            if isinstance(raw_ev, list):
+                for item in raw_ev:
+                    if isinstance(item, dict):
+                        ev_list.append(" | ".join(f"{k}: {v}" for k,v in item.items()))
+                    else:
+                        ev_list.append(str(item))
+            elif isinstance(raw_ev, dict):
+                ev_list = [f"{k}: {v}" for k, v in raw_ev.items()]
+            else:
+                ev_list = [str(raw_ev)]
+
             latency_ms = int((time.time() - t0) * 1000)
-
-            usage = getattr(resp, "usage", None)
-            tokens = getattr(usage, "total_tokens", 0) if usage else 0
-
-            confidence = float(parsed.get("confidence", 0.0))
-            evidence = parsed.get("evidence", [])
-            flags = parsed.get("uncertainty_flags", [])
-
-            if parsed.get("refused", False):
-                flags.append("refused")
-                confidence = 0.0
-            if confidence < 0.5:
-                flags.append("low_confidence")
-            if not evidence:
-                flags.append("no_evidence")
-
-            log_confidence(
-                request_id=req_id,
-                agent_name="specialist",
-                confidence=confidence,
-                latency_ms=latency_ms,
-                evidence=evidence,
-                flags=flags,
-                model_used=SPECIALIST_LLM_MODEL,
-                tokens_used=tokens,
-            )
+            
+            log_confidence(req_id, "specialist", confidence, latency_ms, ev_list, [], SPECIALIST_LLM_MODEL)
 
             out = DiagnosedReport(
-                request_id=req_id,
-                user_id=ctx.user_id,
-                message_id=ctx.message_id,
-                study_uid=ctx.study_uid,
-                retrieved=ctx,
-                analysis=parsed.get("analysis", ""),
-                impression=parsed.get("impression", ""),
-                differential=parsed.get("differential", []),
-                confidence=confidence,
-                evidence=evidence,
+                request_id=req_id, user_id=ctx.user_id, message_id=ctx.message_id, study_uid=ctx.study_uid,
+                retrieved=ctx, 
+                analysis=str(parsed.get("analysis", "No analysis provided.")), 
+                impression=str(parsed.get("impression", "No impression provided.")),
+                differential=diff_list, 
+                confidence=confidence, 
+                evidence=ev_list
             )
-
+            
             update_request_status(req_id, "analyzed")
-
-            publish_with_trace(
-                topic=KAFKA_TOPIC_ANALYZED,
-                payload=out.model_dump(),
-                from_agent="specialist",
-                to_agent="reporter",
-                from_topic=KAFKA_TOPIC_RETRIEVED,
-            )
-            log.info(
-                f"  req={req_id[:8]} conf={confidence:.2f} "
-                f"refused={parsed.get('refused', False)} tokens={tokens} ({latency_ms}ms)"
-            )
-
+            publish_with_trace(KAFKA_TOPIC_ANALYZED, out.model_dump(), "specialist", "reporter", KAFKA_TOPIC_RETRIEVED)
+            log.info(f"  req={req_id[:8]} conf={confidence:.2f} ({latency_ms}ms)")
+            
         except Exception as e:
-            log.exception(f"error en specialist: {e}")
-
+            log.exception(f"error: {e}")
 
 if __name__ == "__main__":
     run()
+
