@@ -11,8 +11,8 @@ log = logging.getLogger("interface")
 # Configuration
 KAFKA_SERVERS = "localhost:9092"
 DB_URL = "postgresql://neurometrix:Enginer012%25@localhost:5432/neurometrix_core_4d"
-AMD_API_BASE = "https://developer.amd.com.cn/radeon/api/v1"
-AMD_API_KEY = "dummy-key-for-hackathon" # Replace with real token if available
+from config import LLM_BASE_URL as AMD_API_BASE
+from config import LLM_API_KEY as AMD_API_KEY
 
 def get_db_connection():
     return psycopg2.connect(DB_URL)

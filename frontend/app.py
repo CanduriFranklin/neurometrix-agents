@@ -1,6 +1,10 @@
 
 import streamlit as st
 import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from config import LLM_BASE_URL, LLM_API_KEY
+
 import uuid
 import time
 import json
@@ -109,7 +113,14 @@ with tab_cases:
 # TAB 3: CHAT WITH AI (Con selector de contexto integrado)
 # =====================================================================
 with tab_chat:
+    
     st.subheader("Consult the Neurometrix AI")
+    
+    # Botón para limpiar la memoria y que no salgan respuestas viejas
+    if st.button("Reset AI Context"):
+        st.session_state.chat_history = [{"role": "assistant", "content": "Context loaded. How can I assist you with this patient?"}]
+        st.rerun()
+    
     
     # --- Selector de contexto dentro del mismo Chat ---
     reports = get_all_cases()
@@ -133,7 +144,7 @@ with tab_chat:
 
     # --- Historial de chat ---
     if "chat_history" not in st.session_state:
-        st.session_state.chat_history = [{"role": "assistant", "content": "I have loaded the patient's clinical report. What would you like to know?"}]
+        st.session_state.chat_history = [{"role": "assistant", "content": "Context loaded. How can I assist you with this patient?"}]
     
     # Si cambiamos de caso, reiniciamos el chat
     if "last_case" not in st.session_state:
@@ -163,28 +174,28 @@ with tab_chat:
         # 2. Streaming
         with st.chat_message("assistant"):
             try:
-                client = OpenAI(base_url="https://developer.amd.com.cn/radeon/api/v1", api_key="dummy-key-for-demo")
+                client = OpenAI(base_url=LLM_BASE_URL, api_key=LLM_API_KEY)
                 stream = client.chat.completions.create(
                     model="Gemma-4-31B-IT",
                     messages=[{"role": "system", "content": f"You are a Neurologist AI. Answer based on this report: {context}"}, {"role": "user", "content": prompt}],
                     stream=True
                 )
-                response_text = st.write_stream((chunk.choices[0].delta.content for chunk in stream if chunk.choices[0].delta.content))
-            except Exception:
-                # Enhanced Medical Fallback
-                def mock_stream():
-                    intro = "Doctor, based on the quantitative analysis of this 4D perfusion study, here is the clinical breakdown:\n\n"
-                    # Extract key metrics from context if possible
-                    analysis = "**1. Density & Tissue Analysis:** The Hounsfield Unit (HU) is significantly low. This suggests the ROI is placed over adipose tissue, air, or a cystic region rather than healthy brain parenchyma.\n\n"
-                    analysis += "**2. Perfusion Status:** The metrics show 0.0 CBF and CBV. In a living patient, this indicates a complete absence of blood flow in that specific region, which correlates with a non-perfused area or a technical artifact.\n\n"
-                    analysis += "**3. Recommendation:** I strongly suggest re-evaluating the ROI placement or confirming the DICOM acquisition integrity, as these values do not match a viable soft tissue.\n\n"
-                    conclusion = "*(Note: This is a context-aware analytical summary. Full detailed report is available in the Case Review tab.)*"
-                    
-                    full_text = intro + analysis + conclusion
-                    for word in full_text.split(" "):
-                        yield word + " "
-                        time.sleep(0.04)
-                response_text = st.write_stream(mock_stream())
+                
+                # Generador robusto que ignora cortes de red al final
+                def stream_generator():
+                    try:
+                        for chunk in stream:
+                            if chunk.choices and chunk.choices[0].delta and chunk.choices[0].delta.content:
+                                yield chunk.choices[0].delta.content
+                    except Exception as e:
+                        print(f"Stream finished with minor network error: {e}")
+
+                response_text = st.write_stream(stream_generator())
+                
+            except Exception as e:
+                # Solo muestra error si falló el inicio de la conexión
+                response_text = "I apologize, Doctor. There was an issue connecting to the AMD Gemma API. Please try again."
+                st.error(response_text)
 
         st.session_state.chat_history.append({"role": "assistant", "content": response_text})
         
