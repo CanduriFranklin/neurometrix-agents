@@ -1,48 +1,37 @@
-
-<div align="center">
+﻿<div align="center">
   <img src="logo.png" alt="Neurometrix Logo" width="300"/>
   
-  # NEUROMETRIX
+  <h1>NEUROMETRIX</h1>
   
-  **ADVANCED MATHEMATICAL NEUROIMAGING SYSTEM**  
-  *QUANTITATIVE STRUCTURAL MEASUREMENT & AGENTIAL INFERENCE ENGINE*
+  <b>ADVANCED MATHEMATICAL NEUROIMAGING SYSTEM</b><br/>
+  <i>QUANTITATIVE STRUCTURAL MEASUREMENT & AGENTIAL INFERENCE ENGINE</i><br/><br/>
+
+  <a href="https://www.amd.com/en/graphics/servers-solutions-rocm">
+    <img src="https://img.shields.io/badge/Powered_by-AMD_ROCm-E31837?style=for-the-badge&logo=amd&logoColor=white" alt="AMD ROCm"/>
+  </a>
+  <a href="https://ai.google.dev/gemma">
+    <img src="https://img.shields.io/badge/Model-Google_Gemma-4285F4?style=for-the-badge&logo=google&logoColor=white" alt="Google Gemma"/>
+  </a>
+  <a href="https://www.python.org/">
+    <img src="https://img.shields.io/badge/Python-3.13-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.13"/>
+  </a>
   
-  <br/>
-  <img src="hackathon.png" alt="AMD Developer Hackathon ACT III" width="600"/>
+  <br/><br/>
+  <img src="hackathon.jpg" alt="AMD Developer Hackathon ACT III" width="600"/>
 </div>
 
 ---
 
+## 📖 Project Overview
+This repository is part of the **Neurometrix** microservices architecture, built for the **AMD Developer Hackathon ACT III**.
 
-[![AMD ROCm](https://img.shields.io/badge/Powered%20by-AMD%20ROCm-E31837?style=for-the-badge&amp;logo=amd)](https://www.amd.com/en/graphics/servers-solutions-rocm)
-![Google Gemma](https://img.shields.io/badge/Model-Google%20Gemma-4285F4?style=for-the-badge&amp;logo=google)(https://ai.google.dev/gemma)
-![Python 3.13](https://img.shields.io/badge/Python-3.13-blue?style=for-the-badge&amp;logo=python)()
+Neurometrix is a high-performance clinical AI assistant designed to automate 4D perfusion imaging analysis. By combining a low-latency C++ mathematical core with a swarm of LLM agents (accelerated on AMD ROCm using Google's Gemma), Neurometrix extracts critical hemodynamic metrics and generates expert-level radiological reports with **zero hallucinations**, keeping the human physician in the loop.
 
-## Project Overview
-This repository contains the Cognitive Layer of Neurometrix. It is a multi-agent AI swarm built on Python and Apache Kafka. It consumes pure numerical data extracted by the C++ Math Cores and uses Google Gemma (hosted on AMD ROCm) to generate expert-level radiological reports.
+## 🏗️ Architecture Components
+1. **Agents (This Repo)**: Python AI Swarm, ETL, and Streamlit Frontend.
+2. **Core 4D**: High-performance C++ engine for 4D perfusion processing.
+3. **Core 3D/2D**: Specialized C++ engines for other imaging dimensions.
+4. **Router**: C++ Intelligent Router (Hexagonal Architecture).
 
-## The Zero-Hallucination Philosophy
-Traditional medical AI tries to look at images and guess. We do not.
-1. The C++ Core calculates precise metrics (CBF, CBV).
-2. The AI Agents receive these hard numbers.
-3. The LLM (Gemma) is mathematically constrained to base its diagnosis only on this verified data.
-
-## Value Proposition (For SMBs & Clinics)
-- Democratizing Tier-1 Tools: Small clinics and private practices cannot afford $500k proprietary perfusion software. This open, microservice-based swarm provides hospital-grade analysis at a fraction of the cost.
-- ROI: Reduces radiologist analysis time from 45 minutes to 2 minutes per 4D study.
-- Liability Reduction: By eliminating AI hallucinations, it protects clinics from misdiagnosis lawsuits.
-
-## Architecture
-This module uses an Event-Driven Architecture:
-- Orchestrator: Routes incoming DICOMs.
-- Data Engineer (ETL): Curates files (Raw -> Workspace -> Curated) and triggers the C++ Core.
-- Classifier, RAG, Specialist, Reporter, Auditor: The AI swarm.
-- Interface: Real-time streaming chat.
-
-## Setup & Run
-```bash
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-python supervisor.py
-```
+## 🚀 Quick Start
+Please refer to the USER_MANUAL.md and CLINICAL_USER_MANUAL.md files in this repository for deployment and usage instructions.
